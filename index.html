@@ -10,6 +10,14 @@
 </head>
 <body>
     <div class="container mt-5">
+        <div class="p-3 mb-2 bg-light border rounded">
+            <p class="mb-1">
+                Select one or more parameter combinations to view the polygons queried and the results returned by TomTom.
+            </p>
+            <p class="mb-0">
+                For X observed traversals on 500-meter road segments, one polygon is queried, where X is the tuning parameter. Isolated components on the Israeli road network with fewer than X/2 traversals are not queried, if its centroid is within Y meters to the centroid of another component with more than X/2 traversals, where Y is the distance threshold.
+            </p>
+        </div>
         <div class="row mb-3 param-row">
             <div class="col">
                 <label for="tuningParam">Tuning Parameter</label>
