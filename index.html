@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Parameter Selection</title>
+    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">  <!-- Bootstrap CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />  <!-- Leaflet CSS for Maps -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">  <!-- FontAwesome CSS  -->
+</head>
+<body>
+    <div class="container mt-5">
+        <div class="row mb-3 param-row">
+            <div class="col">
+                <label for="tuningParam">Tuning Parameter</label>
+                <select class="form-control tuningParam">
+                    <option>All</option>
+                    <option>5000</option>
+                    <option>10000</option>
+                    <option>25000</option>
+                    <option>50000</option>
+                    <option>100000</option>
+                    <option>500000</option>
+                    <option>1000000</option>
+                </select>
+            </div>
+            <div class="col">
+                <label for="distanceThres">Distance Threshold</label>
+                <select class="form-control distanceThres">
+                    <option>All</option>
+                    <option>0</option>
+                    <option>2500</option>
+                    <option>5000</option>
+                    <option>10000</option>
+                    <option>25000</option>
+                    <option>50000</option>
+                </select>
+            </div>
+            <div class="col">
+                <label for="ayalonFlag">Ayalon Only</label>
+                <select class="form-control ayalonFlag">
+                    <option>All</option>
+                    <option>Yes</option>
+                    <option>No</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="row mb-3">
+            <div class="col">
+                <button class="btn btn-primary" id="addRow">Add Row</button>
+                <button class="btn btn-danger" id="removeRow">Remove Row</button>
+                <button class="btn btn-warning" id="reset">Reset</button>
+                <button class="btn btn-success" id="viewResult">View Result</button>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col">
+                <div id="resultTable" class="table-responsive"></div>
+            </div>
+        </div>
+
+        <!-- Modal -->
+        <div class="modal fade" id="polygonBreakdownModal" tabindex="-1" role="dialog" aria-labelledby="polygonBreakdownLabel" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="polygonBreakdownLabel">Polygon Breakdown</h5>
+                        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                    </div>
+                    <div class="modal-body table-responsive" id="polygonBreakdownContent">
+                        <!-- Content will be loaded dynamically -->
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Map Modal -->
+        <div class="modal fade" id="mapModal" tabindex="-1" role="dialog" aria-labelledby="mapLabel" aria-hidden="true">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="mapLabel">Map View</h5>
+                        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                    </div>
+                    <div class="modal-body" id="mapContainer">
+                        <div id="map" style="height: 500px;"></div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>  <!-- jQuery -->
+    <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.1/dist/umd/popper.min.js"></script>  <!-- Popper.js for Bootstrap -->
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>  <!-- Bootstrap JS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/leaflet.js"></script>  <!-- Leaflet for Maps -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/wicket/1.3.5/wicket.min.js"></script>  <!-- Wicket for Maps -->
+
+    <script>
+        $(document).ready(function() {
+            let currentMap;
+
+            function viewMap() {
+                if (currentMap) {
+                    currentMap.remove();
+                    $('#mapContainer').html('<div id="map" style="height: 500px;"></div>');
+                }
+
+                let id = $(this).data('id');
+                // currentMap = L.map('map').setView([32.0853, 34.7818], 13);
+                currentMap = L.map('map', {center: [32.0853, 34.7818], zoom: 13});
+
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    maxZoom: 19,
+                    attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+                }).addTo(currentMap);
+
+                L.control.scale({
+                    position: 'bottomleft', // Position of the scale control
+                    metric: true,           // Use the metric system (meters/kilometers)
+                    imperial: false         // Use the imperial system (feet/miles)
+                }).addTo(currentMap);
+
+                // Load the appropriate WKT file and display it on the map
+                $.get(`assets/${id}.txt`, function(data) {
+                    // Process the WKT data and convert to GeoJSON
+                    let wkt = new Wkt.Wkt();
+                    wkt.read(data);
+                    let geojson = wkt.toJson();
+                    L.geoJSON(geojson, {
+                        style: function (feature) {
+                            return {
+                                color: 'red',  // Border color
+                                weight: 6      // Border width in pixels, feel free to adjust as needed
+                            };
+                        }
+                    }).addTo(currentMap);
+                });
+
+                $('#mapModal').modal('show');
+                
+                setTimeout(function() {
+                    currentMap.invalidateSize();
+                }, 500);
+            }
+
+            function viewPolygon() {
+                let id = $(this).data('id');
+                $.get(`assets/${id}.csv`, function(data) {
+                    let rows = '';
+                    let lines = data.split("\n");
+                    let headers = lines[0].split(",");
+                    let html = "<table class='table table-bordered'><thead><tr>";
+                    for (let header of headers) {
+                        html += `<th>${header}</th>`;
+                    }
+                    html += "</tr></thead><tbody>";
+                    for (let i = 1; i < lines.length; i++) {
+                        if (!lines[i]) continue;
+                        let cells = lines[i].split(",");
+                        html += "<tr>";
+                        for (let cell of cells) {
+                            html += `<td>${cell}</td>`;
+                        }
+                        html += "</tr>";
+                    }
+                    html += "</tbody></table>";
+                    $('#polygonBreakdownContent').html(html);
+                    $('#polygonBreakdownModal').modal('show');
+                });
+            }
+
+            function fetchSelectedFilters() {
+                let filters = [];
+                $('.param-row').each(function() {
+                    let tuningParam = $(this).find('.tuningParam').val();
+                    let distanceThresh = $(this).find('.distanceThres').val();
+                    let ayalonOnly = $(this).find('.ayalonFlag').val();
+                    if (tuningParam && distanceThresh && ayalonOnly) {
+                        filters.push({
+                            tuningParam: tuningParam,
+                            distanceThresh: distanceThresh,
+                            ayalonOnly: ayalonOnly
+                        });
+                    }
+                });
+                return filters;
+            }
+
+            $('#viewResult').click(function() {
+                let filters = fetchSelectedFilters();
+                $.ajax({
+                    url: 'assets/data.csv',
+                    dataType: 'text',
+                    success: function(data) {
+                        let rows = '';
+                        let lines = data.split("\n");
+                        let headers = lines[0].split(",");
+                        for (let i = 1; i < lines.length; i++) {
+                            if (!lines[i]) continue;
+                            let cells = lines[i].split(",");
+                            let rowTuningParam = cells[0];
+                            let rowDistanceThresh = cells[1];
+                            let rowAyalonOnly = cells[2];
+                            let rowNetworkLength = cells[3];
+                            let rowCoveredNetworkLength = cells[4];
+                            let rowEstimatedPrice = cells[5];
+                            let rowNumPolygons = cells[6];
+
+                            let match = filters.some(filter => 
+                                (filter.tuningParam == rowTuningParam || filter.tuningParam == "All") && 
+                                (filter.distanceThresh == rowDistanceThresh || filter.distanceThresh == "All") && 
+                                (filter.ayalonOnly == rowAyalonOnly || filter.ayalonOnly == "All")
+                            );
+
+                            if (match) {
+                                rows += `
+                                    <tr>
+                                        <td>${rowTuningParam}</td>
+                                        <td>${rowDistanceThresh}</td>
+                                        <td>${rowAyalonOnly}</td>
+                                        <td>${rowNetworkLength}</td>
+                                        <td>${rowCoveredNetworkLength}</td>
+                                        <td>${rowEstimatedPrice}</td>
+                                        <td>${rowNumPolygons}</td>
+                                        <td style="min-width:115px">
+                                            <button class="btn btn-info view-map" data-id="${rowTuningParam}_${rowDistanceThresh}_${rowAyalonOnly.toLowerCase()}" title="View Map">
+                                                <i class="fas fa-map"></i>
+                                            </button>
+                                            <button class="btn btn-secondary view-polygon" data-id="${rowTuningParam}_${rowDistanceThresh}_${rowAyalonOnly.toLowerCase()}" title="Polygon Breakdown">
+                                                <i class="fas fa-table"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                `;
+                            }
+                        }
+
+                        $('#resultTable').html(`
+                            <table class="table table-striped">
+                                <thead>
+                                    <tr>
+                                        <th>Tuning Parameter</th>
+                                        <th>Distance Threshold</th>
+                                        <th>Ayalon Only</th>
+                                        <th>Network Length</th>
+                                        <th>Covered Network Length</th>
+                                        <th>Estimated price</th>
+                                        <th>No. of polygons</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${rows}
+                                </tbody>
+                            </table>
+                        `);
+
+                        $('.view-map').click(viewMap);
+                        $('.view-polygon').click(viewPolygon);
+                    }
+                });
+            });
+
+            $('#addRow').click(function() {
+                let newRow = $('.param-row:first').clone();
+                newRow.find('select').val('');
+                newRow.insertBefore($(this).closest('.row'));
+            });
+
+            $('#removeRow').click(function() {
+                let row_count = $('.param-row').length;
+                if (row_count > 1) {
+                    $('.container').find('.param-row:last').remove();
+                }
+            });
+
+
+            $('#reset').click(function() {
+                location.reload();
+            });
+        });
+    </script>
+</body>
+</html>
